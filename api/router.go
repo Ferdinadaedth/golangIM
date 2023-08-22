@@ -11,6 +11,8 @@ func InitRouter() {
 	r.POST("/verify", middleware.JWTAuthMiddleware())
 	r.POST("/register", register) // 注册
 	r.POST("/login", login)       // 登录
+	r.POST("/addfriend", middleware.JWTAuthMiddleware(), addfriend)
+	r.POST("/deletefriend", middleware.JWTAuthMiddleware(), deletefriend)
 	UserRouter := r.Group("/user")
 	{
 		UserRouter.Use(middleware.JWTAuthMiddleware())

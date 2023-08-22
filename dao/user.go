@@ -34,6 +34,32 @@ func SelectUser(username string) bool {
 	}
 
 }
+func Addfriend(username, friendid string) {
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", userName, Password, ip, port, dbName))
+	if err != nil {
+		panic(err.Error())
+	}
+	defer db.Close()
+
+	// 插入用户记录
+	_, err = db.Exec("INSERT INTO user_relation (userid, friendid) VALUES (?, ?)", username, friendid)
+	if err != nil {
+		panic(err.Error())
+	}
+}
+func Deletefriend(username, friendid string) {
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", userName, Password, ip, port, dbName))
+	if err != nil {
+		panic(err.Error())
+	}
+	defer db.Close()
+
+	// 插入用户记录
+	_, err = db.Exec("DELETE FROM user_relation WHERE userid = 'username' AND friendid = 'friendid'")
+	if err != nil {
+		panic(err.Error())
+	}
+}
 
 // AddUser 添加用户
 func AddUser(username, password string) {

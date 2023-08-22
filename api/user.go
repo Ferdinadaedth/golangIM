@@ -65,8 +65,6 @@ func login(c *gin.Context) {
 		return
 	}
 	c.SetCookie("gin_demo_cookie", "test", 3600, "/", "localhost", false, true)
-	//utils.RespSuccess(c, "login successful")
-	// 正确则登录成功
 	// 创建一个我们自己的声明
 	claim := model.MyClaims{
 		Username: username, // 自定义字段
@@ -79,12 +77,45 @@ func login(c *gin.Context) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claim)
 	// 使用指定的secret签名并获得完整的编码后的字符串token
 	tokenString, _ := token.SignedString(middleware.Secret)
-	//utils.RespSuccess(c, tokenString)
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "200",
 		"message": "登录成功",
 		"token":   tokenString,
 	})
+}
+func addfriend(c *gin.Context) {
+	friendid := c.PostForm("friendid")
+	value, exists := c.Get("username")
+	if !exists {
+		// 变量不存在，处理错误
+		utils.RespFail(c, "username not found")
+
+		return
+	}
+	username, ok := value.(string)
+	if !ok {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "username is not a string"})
+		return
+	}
+	dao.Addfriend(username, friendid)
+	utils.RespSuccess(c, "成功添加好友")
+}
+func deletefriend(c *gin.Context) {
+	friendid := c.PostForm("friendid")
+	value, exists := c.Get("username")
+	if !exists {
+		// 变量不存在，处理错误
+		utils.RespFail(c, "username not found")
+
+		return
+	}
+	username, ok := value.(string)
+	if !ok {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "username is not a string"})
+		return
+	}
+	dao.Deletefriend(username, friendid)
+	utils.RespSuccess(c, "成功删除好友")
 }
 func getUsernameFromToken(c *gin.Context) {
 	username, _ := c.Get("username")
