@@ -3,6 +3,7 @@ package api
 import (
 	"github.com/gin-gonic/gin"
 	"golangIM/api/middleware"
+	"golangIM/dao"
 )
 
 func InitRouter() {
@@ -13,6 +14,9 @@ func InitRouter() {
 	r.POST("/login", login)       // 登录
 	r.POST("/addfriend", middleware.JWTAuthMiddleware(), addfriend)
 	r.POST("/deletefriend", middleware.JWTAuthMiddleware(), deletefriend)
+	r.GET("/ws/:userID", middleware.JWTAuthMiddleware(), websocketHandler)
+	r.GET("/ws1/:userID", websocketHandler1)
+	r.GET("/getfriend", middleware.JWTAuthMiddleware(), dao.Getfriend)
 	UserRouter := r.Group("/user")
 	{
 		UserRouter.Use(middleware.JWTAuthMiddleware())
