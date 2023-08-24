@@ -14,8 +14,8 @@ func InitRouter() {
 	r.POST("/login", login)       // 登录
 	r.POST("/addfriend", middleware.JWTAuthMiddleware(), addfriend)
 	r.POST("/deletefriend", middleware.JWTAuthMiddleware(), deletefriend)
-	r.GET("/ws/:userID", middleware.JWTAuthMiddleware(), websocketHandler)
-	r.GET("/ws1/:userID", websocketHandler1)
+	r.GET("/ws/:userID", websocketHandler)
+	r.GET("/upload/:userID", uploadImage)
 	r.GET("/getfriend", middleware.JWTAuthMiddleware(), dao.Getfriend)
 	UserRouter := r.Group("/user")
 	{
