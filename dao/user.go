@@ -13,12 +13,23 @@ import (
 
 const (
 	userName = "root"
-	Password = "123456"
+	Password = "yx041110"
 	ip       = "newk8s.ferdinandaedth.top"
 	port     = "3306"
 	dbName   = "userdb"
 )
 
+func Creategroup(groupname string) {
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", userName, Password, ip, port, dbName))
+	if err != nil {
+		panic(err.Error())
+	}
+	defer db.Close()
+	_, err = db.Exec("INSERT INTO Groups (groupname) VALUES (?)", groupname)
+	if err != nil {
+		panic(err.Error())
+	}
+}
 func SelectUser(username string) bool {
 	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", userName, Password, ip, port, dbName))
 	if err != nil {
@@ -39,6 +50,49 @@ func SelectUser(username string) bool {
 	}
 
 }
+func Selectid(username string) string {
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", userName, Password, ip, port, dbName))
+	if err != nil {
+		panic(err.Error())
+	}
+	defer db.Close()
+	var userid string
+	err = db.QueryRow("SELECT userid FROM user WHERE username=?", username).Scan(&userid)
+	if err != nil {
+		panic(err.Error())
+	}
+	return userid
+}
+func Addmember(id, groupid string) {
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", userName, Password, ip, port, dbName))
+	if err != nil {
+		panic(err.Error())
+	}
+	defer db.Close()
+	var membername string
+	err = db.QueryRow("SELECT username FROM user WHERE userid=?", id).Scan(&membername)
+	if err != nil {
+		panic(err.Error())
+	}
+	// 插入用户记录
+	_, err = db.Exec("INSERT INTO groupmember (memberid,membername,groupid) VALUES (?, ?,?)", id, membername, groupid)
+	if err != nil {
+		panic(err.Error())
+	}
+}
+func Selectgroupid(groupname string) string {
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", userName, Password, ip, port, dbName))
+	if err != nil {
+		panic(err.Error())
+	}
+	defer db.Close()
+	var groupid string
+	err = db.QueryRow("SELECT groupid FROM Groups WHERE groupname=?", groupname).Scan(&groupid)
+	if err != nil {
+		panic(err.Error())
+	}
+	return groupid
+}
 func Addfriend(username, friendid string) {
 	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", userName, Password, ip, port, dbName))
 	if err != nil {
@@ -46,13 +100,21 @@ func Addfriend(username, friendid string) {
 	}
 	defer db.Close()
 	var userid int
-
+	var uuserid int
 	err = db.QueryRow("SELECT userid FROM user WHERE username=?", friendid).Scan(&userid)
+	if err != nil {
+		panic(err.Error())
+	}
+	err = db.QueryRow("SELECT userid FROM user WHERE username=?", username).Scan(&uuserid)
 	if err != nil {
 		panic(err.Error())
 	}
 	// 插入用户记录
 	_, err = db.Exec("INSERT INTO user_relation (userid, friendid,friendname) VALUES (?, ?,?)", username, userid, friendid)
+	if err != nil {
+		panic(err.Error())
+	}
+	_, err = db.Exec("INSERT INTO user_relation (friendname, friendid,userid) VALUES (?, ?,?)", username, uuserid, friendid)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -99,6 +161,37 @@ func SelectPasswordFromUsername(username string) string {
 		panic(err.Error())
 	}
 	return password
+}
+func Getgroupmember(groupid string) []model.GroupMember {
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", userName, Password, ip, port, dbName))
+	if err != nil {
+		panic(err.Error())
+	}
+	defer db.Close()
+
+	// 查询数据库
+	rows, err := db.Query("SELECT memberid, membername, groupid FROM groupmember WHERE groupid = ?", groupid)
+	if err != nil {
+		panic(err.Error())
+	}
+	defer rows.Close()
+
+	var groupMembers []model.GroupMember
+
+	// 遍历查询结果，将数据存储到切片中
+	for rows.Next() {
+		var member model.GroupMember
+		err := rows.Scan(&member.MemberID, &member.MemberName, &member.GroupID)
+		if err != nil {
+			panic(err.Error())
+		}
+		groupMembers = append(groupMembers, member)
+	}
+
+	if err := rows.Err(); err != nil {
+		panic(err.Error())
+	}
+	return groupMembers
 }
 func Getfriend(c *gin.Context) {
 	value, exists := c.Get("username")

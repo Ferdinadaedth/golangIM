@@ -12,6 +12,12 @@ type Friend struct {
 	Friendid   string `form:"Friendid " json:"Friendid " binding:"required"`
 	Friendname string `form:"Friendname" json:"Friendname" binding:"required"`
 }
+type GroupMember struct {
+	MemberID   int    `json:"memberid"`
+	MemberName string `json:"membername"`
+	GroupID    int    `json:"groupid"`
+}
+
 type MyClaims struct {
 	Username string `json:"username"`
 	jwt.StandardClaims
