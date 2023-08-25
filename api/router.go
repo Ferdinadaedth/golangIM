@@ -21,6 +21,8 @@ func InitRouter() {
 	r.GET("/creategroup/:groupname", middleware.JWTAuthMiddleware(), creategroup)
 	r.POST("/invitefriend", invitefriend)
 	r.GET("/getfriend", middleware.JWTAuthMiddleware(), dao.Getfriend)
+	r.GET("/getsmessage", middleware.JWTAuthMiddleware(), getsmessage)
+	r.GET("/getgmessage", middleware.JWTAuthMiddleware(), getgmessage)
 	UserRouter := r.Group("/user")
 	{
 		UserRouter.Use(middleware.JWTAuthMiddleware())

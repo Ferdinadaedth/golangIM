@@ -12,6 +12,15 @@ type Friend struct {
 	Friendid   string `form:"Friendid " json:"Friendid " binding:"required"`
 	Friendname string `form:"Friendname" json:"Friendname" binding:"required"`
 }
+type Smessage struct {
+	Sender  string `form:"sender" json:"sender" binding:"required"`
+	Content string `form:"content" json:"content" binding:"required"`
+}
+type Gmessage struct {
+	Sender  string `form:"sender" json:"sender" binding:"required"`
+	Content string `form:"content" json:"content" binding:"required"`
+	Groupid string `form:"groupid" json:"groupid" binding:"required"`
+}
 type GroupMember struct {
 	MemberID   int    `json:"memberid"`
 	MemberName string `json:"membername"`
