@@ -84,6 +84,8 @@ func groupWebSocketHandler(c *gin.Context) {
 			break
 		}
 		if messageType == websocket.TextMessage {
+			mtype := "text"
+			dao.DepositGmessages(username, groupID, string(msg), mtype)
 			for _, conn := range connectedClients {
 				// 检查连接是否存在于 groupMembers 中
 				for _, member := range groupMembers {
@@ -109,7 +111,7 @@ func groupuploadImage(c *gin.Context) {
 		utils.RespFail(c, "Error uploading file")
 		return
 	}
-
+	username := dao.Getusername(c)
 	// 读取上传的文件数据
 	fileData, err := file.Open()
 	if err != nil {
@@ -117,7 +119,12 @@ func groupuploadImage(c *gin.Context) {
 		return
 	}
 	defer fileData.Close()
-
+	filePath := "uploads/" + file.Filename
+	err = c.SaveUploadedFile(file, filePath)
+	filecontent := "http://43.138.59.103:250/" + file.Filename
+	// 将文件数据发送给WebSocket连接的客户端
+	mtype := "image"
+	dao.DepositSmessages(username, groupID, filecontent, mtype)
 	// 将文件数据发送给WebSocket连接的客户端
 	data, err := ioutil.ReadAll(fileData)
 	if err != nil {
@@ -148,13 +155,13 @@ func uploadImage(c *gin.Context) {
 		utils.RespFail(c, "User not connected")
 		return
 	}
-
+	targetusername := dao.Selectusername(userID)
 	file, err := c.FormFile("file")
 	if err != nil {
 		utils.RespFail(c, "Error uploading file")
 		return
 	}
-
+	username := dao.Getusername(c)
 	// 读取上传的文件数据
 	fileData, err := file.Open()
 	if err != nil {
@@ -162,8 +169,12 @@ func uploadImage(c *gin.Context) {
 		return
 	}
 	defer fileData.Close()
-
+	filePath := "uploads/" + file.Filename
+	err = c.SaveUploadedFile(file, filePath)
+	filecontent := "http://43.138.59.103:250/" + file.Filename
 	// 将文件数据发送给WebSocket连接的客户端
+	mtype := "image"
+	dao.DepositSmessages(username, targetusername, filecontent, mtype)
 	data, err := ioutil.ReadAll(fileData)
 	if err != nil {
 		utils.RespFail(c, "Error reading file data")
