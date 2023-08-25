@@ -8,7 +8,6 @@ import (
 	"golangIM/utils"
 	"io/ioutil"
 	"net/http"
-	"strings"
 )
 
 var upgrader = websocket.Upgrader{
@@ -20,19 +19,21 @@ var upgrader = websocket.Upgrader{
 var connectedClients = make(map[string]*websocket.Conn)
 
 func websocketHandler(c *gin.Context) {
-	userID := c.Param("userID")
+	targetuserID := c.Param("userID")
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		fmt.Println("WebSocket upgrade error:", err)
 		return
 	}
-
+	username := dao.Getusername(c)
+	userID := dao.Selectid(username)
 	connectedClients[userID] = conn
+	fmt.Println(userID)
 	defer func() {
 		conn.Close()
 		delete(connectedClients, userID)
 	}()
-
+	targetusername := dao.Selectusername(targetuserID)
 	fmt.Println(userID, "connected")
 
 	for {
@@ -43,30 +44,18 @@ func websocketHandler(c *gin.Context) {
 		}
 
 		if messageType == websocket.TextMessage {
+			mtype := "text"
+			dao.DepositSmessages(username, targetusername, string(msg), mtype)
 			fmt.Printf("Received from %s: %s\n", userID, msg)
-			parts := strings.SplitN(string(msg), ":", 2)
-			if len(parts) == 2 {
-				targetUserID := parts[0]
-				messageToSend := parts[1]
-				targetConn, exists := connectedClients[targetUserID]
-				if exists {
-					if err := targetConn.WriteMessage(websocket.TextMessage, []byte(messageToSend)); err != nil {
-						fmt.Println("Write error:", err)
-					}
-				} else {
-					fmt.Printf("Target user %s is not connected.\n", targetUserID)
-				}
-			}
-
-		} else if messageType == websocket.BinaryMessage {
-			// 处理图片数据消息
-			// 将收到的图片数据广播给所有连接的客户端
-			for _, clientConn := range connectedClients {
-				err := clientConn.WriteMessage(websocket.BinaryMessage, msg)
-				if err != nil {
+			targetConn, exists := connectedClients[targetuserID]
+			if exists {
+				if err := targetConn.WriteMessage(websocket.TextMessage, []byte(msg)); err != nil {
 					fmt.Println("Write error:", err)
 				}
+			} else {
+				fmt.Printf("Target user %s is not connected.\n", targetuserID)
 			}
+
 		}
 	}
 }
@@ -77,18 +66,7 @@ func groupWebSocketHandler(c *gin.Context) {
 		fmt.Println("WebSocket upgrade error:", err)
 		return
 	}
-	value, exists := c.Get("username")
-	if !exists {
-		// 变量不存在，处理错误
-		utils.RespFail(c, "username not found")
-
-		return
-	}
-	username, ok := value.(string)
-	if !ok {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "username is not a string"})
-		return
-	}
+	username := dao.Getusername(c)
 	groupMembers := dao.Getgroupmember(groupID) // 获取群组中的成员列表
 	connectedClients[username] = conn
 

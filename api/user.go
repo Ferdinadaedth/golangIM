@@ -106,13 +106,10 @@ func deletefriend(c *gin.Context) {
 	if !exists {
 		// 变量不存在，处理错误
 		utils.RespFail(c, "username not found")
-
-		return
 	}
 	username, ok := value.(string)
 	if !ok {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "username is not a string"})
-		return
 	}
 	dao.Deletefriend(username, friendid)
 	utils.RespSuccess(c, "成功删除好友")

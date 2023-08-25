@@ -14,10 +14,10 @@ func InitRouter() {
 	r.POST("/login", login)       // 登录
 	r.POST("/addfriend", middleware.JWTAuthMiddleware(), addfriend)
 	r.POST("/deletefriend", middleware.JWTAuthMiddleware(), deletefriend)
-	r.GET("/ws/:userID", websocketHandler)
+	r.GET("/ws/:userID", middleware.JWTAuthMiddleware(), websocketHandler)
 	r.GET("/groupws/:groupID", middleware.JWTAuthMiddleware(), groupWebSocketHandler)
 	r.GET("/upload/:userID", middleware.JWTAuthMiddleware(), uploadImage)
-	r.GET("/gupload/:groupID", middleware.JWTAuthMiddleware(), groupuploadImage)
+	r.GET("/groupload/:groupID", middleware.JWTAuthMiddleware(), groupuploadImage)
 	r.GET("/creategroup/:groupname", middleware.JWTAuthMiddleware(), creategroup)
 	r.POST("/invitefriend", invitefriend)
 	r.GET("/getfriend", middleware.JWTAuthMiddleware(), dao.Getfriend)

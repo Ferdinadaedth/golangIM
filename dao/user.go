@@ -6,7 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 	_ "github.com/go-sql-driver/mysql"
 	"golangIM/model"
-	"golangIM/utils"
 	"log"
 	"net/http"
 )
@@ -62,6 +61,19 @@ func Selectid(username string) string {
 		panic(err.Error())
 	}
 	return userid
+}
+func Selectusername(id string) string {
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", userName, Password, ip, port, dbName))
+	if err != nil {
+		panic(err.Error())
+	}
+	defer db.Close()
+	var username string
+	err = db.QueryRow("SELECT username FROM user WHERE userid=?", id).Scan(&username)
+	if err != nil {
+		panic(err.Error())
+	}
+	return username
 }
 func Addmember(id, groupid string) {
 	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", userName, Password, ip, port, dbName))
@@ -127,7 +139,7 @@ func Deletefriend(username, friendid string) {
 	defer db.Close()
 
 	// 插入用户记录
-	_, err = db.Exec("DELETE FROM user_relation WHERE userid = 'username' AND friendid = 'friendid'")
+	_, err = db.Exec("DELETE FROM user_relation WHERE userid = ? AND friendid = ?", username, friendid)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -194,18 +206,7 @@ func Getgroupmember(groupid string) []model.GroupMember {
 	return groupMembers
 }
 func Getfriend(c *gin.Context) {
-	value, exists := c.Get("username")
-	if !exists {
-		// 变量不存在，处理错误
-		utils.RespFail(c, "username not found")
-
-		return
-	}
-	username, ok := value.(string)
-	if !ok {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "username is not a string"})
-		return
-	}
+	username := Getusername(c)
 	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", userName, Password, ip, port, dbName))
 	if err != nil {
 		panic(err.Error())
@@ -230,4 +231,16 @@ func Getfriend(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"friends": friends})
 
+}
+func Getusername(c *gin.Context) string {
+	value, exists := c.Get("username")
+	if !exists {
+		// 变量不存在，处理错误
+		fmt.Printf("username not found")
+	}
+	username, ok := value.(string)
+	if !ok {
+		fmt.Printf("username is not a string")
+	}
+	return username
 }
