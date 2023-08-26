@@ -209,6 +209,10 @@ func groupuploadImage(c *gin.Context) {
 	// 将文件数据发送给WebSocket连接的客户端
 	mtype := "image"
 	dao.DepositSmessages(username, groupID, filecontent, mtype)
+	err = cache.DeleteCache("gmessages")
+	if err != nil {
+		log.Fatal(err.Error)
+	}
 	// 将文件数据发送给WebSocket连接的客户端
 	data, err := ioutil.ReadAll(fileData)
 	if err != nil {
@@ -269,6 +273,10 @@ func uploadImage(c *gin.Context) {
 	// 将文件数据发送给WebSocket连接的客户端
 	mtype := "image"
 	dao.DepositSmessages(username, targetusername, filecontent, mtype)
+	err = cache.DeleteCache("smessages")
+	if err != nil {
+		log.Fatal(err.Error)
+	}
 	data, err := ioutil.ReadAll(fileData)
 	if err != nil {
 		utils.RespFail(c, "Error reading file data")
