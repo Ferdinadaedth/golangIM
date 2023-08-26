@@ -9,6 +9,7 @@ import (
 	"golangIM/model"
 	"golangIM/utils"
 	"io/ioutil"
+	"log"
 	"net/http"
 )
 
@@ -38,6 +39,7 @@ func getgmessage(c *gin.Context) {
 	})
 	err = cache.SetCache("gmessages", &gmessages)
 	if err != nil {
+		log.Fatal(err.Error)
 		return
 	}
 }
@@ -59,11 +61,12 @@ func getsmessage(c *gin.Context) {
 	})
 	err = cache.SetCache("smessages", &smessages)
 	if err != nil {
+		log.Fatal(err.Error)
 		return
 	}
 }
-func websocketHandler(c *gin.Context) {
-	targetuserID := c.Param("userID")
+func sendsmessage(c *gin.Context) {
+	targetUserID := c.Param("userID")
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		fmt.Println("WebSocket upgrade error:", err)
@@ -77,8 +80,25 @@ func websocketHandler(c *gin.Context) {
 		conn.Close()
 		delete(connectedClients, userID)
 	}()
-	targetusername := dao.Selectusername(targetuserID)
+	targetUsername := dao.Selectusername(targetUserID)
 	fmt.Println(userID, "connected")
+
+	// 创建一个通道用于发送消息
+	messageChannel := make(chan []byte)
+
+	// 启动一个 goroutine 处理消息发送
+	go func() {
+		for msg := range messageChannel {
+			targetConn, exists := connectedClients[targetUserID]
+			if exists {
+				if err := targetConn.WriteMessage(websocket.TextMessage, msg); err != nil {
+					fmt.Println("Write error:", err)
+				}
+			} else {
+				fmt.Printf("Target user %s is not connected.\n", targetUserID)
+			}
+		}
+	}()
 
 	for {
 		messageType, msg, err := conn.ReadMessage()
@@ -89,21 +109,23 @@ func websocketHandler(c *gin.Context) {
 
 		if messageType == websocket.TextMessage {
 			mtype := "text"
-			dao.DepositSmessages(username, targetusername, string(msg), mtype)
-			fmt.Printf("Received from %s: %s\n", userID, msg)
-			targetConn, exists := connectedClients[targetuserID]
-			if exists {
-				if err := targetConn.WriteMessage(websocket.TextMessage, []byte(msg)); err != nil {
-					fmt.Println("Write error:", err)
-				}
-			} else {
-				fmt.Printf("Target user %s is not connected.\n", targetuserID)
+			dao.DepositSmessages(username, targetUsername, string(msg), mtype)
+			err = cache.DeleteCache("smessages")
+			if err != nil {
+				log.Fatal(err.Error())
 			}
+			fmt.Printf("Received from %s: %s\n", userID, msg)
 
+			// 将消息发送到通道
+			messageChannel <- []byte(msg)
 		}
 	}
+
+	// 关闭通道，结束 goroutine
+	close(messageChannel)
 }
-func groupWebSocketHandler(c *gin.Context) {
+
+func sendgmessage(c *gin.Context) {
 	groupID := c.Param("groupID")
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
@@ -111,9 +133,9 @@ func groupWebSocketHandler(c *gin.Context) {
 		return
 	}
 	username := dao.Getusername(c)
-	groupMembers := dao.Getgroupmember(groupID) // 获取群组中的成员列表
+	groupMembers := dao.Getgroupmember(groupID)
+	// 获取群组中的成员列表
 	connectedClients[username] = conn
-
 	defer func() {
 		conn.Close()
 		delete(connectedClients, username)
@@ -121,19 +143,16 @@ func groupWebSocketHandler(c *gin.Context) {
 
 	fmt.Println(username, "connected")
 
-	for {
-		messageType, msg, err := conn.ReadMessage()
-		if err != nil {
-			fmt.Println("Read error:", err)
-			break
-		}
-		if messageType == websocket.TextMessage {
-			mtype := "text"
-			dao.DepositGmessages(username, groupID, string(msg), mtype)
+	// 创建一个通道用于发送消息
+	messageChannel := make(chan []byte)
+
+	// 启动一个 goroutine 处理消息发送
+	go func() {
+		for msg := range messageChannel {
 			for _, conn := range connectedClients {
 				// 检查连接是否存在于 groupMembers 中
 				for _, member := range groupMembers {
-					if conn == connectedClients[member.MemberName] {
+					if conn == connectedClients[member.MemberName] && member.MemberName != username {
 						// 发送消息给匹配的连接
 						err := conn.WriteMessage(websocket.TextMessage, msg)
 						if err != nil {
@@ -144,7 +163,28 @@ func groupWebSocketHandler(c *gin.Context) {
 				}
 			}
 		}
+	}()
+
+	for {
+		messageType, msg, err := conn.ReadMessage()
+		if err != nil {
+			fmt.Println("Read error:", err)
+			break
+		}
+		if messageType == websocket.TextMessage {
+			mtype := "text"
+			dao.DepositGmessages(username, groupID, string(msg), mtype)
+			err = cache.DeleteCache("gmessages")
+			if err != nil {
+				log.Fatal(err.Error)
+			}
+			// 将消息发送到通道
+			messageChannel <- msg
+		}
 	}
+
+	// 关闭通道，结束 goroutine
+	close(messageChannel)
 }
 func groupuploadImage(c *gin.Context) {
 	groupID := c.Param("groupID")
@@ -175,23 +215,33 @@ func groupuploadImage(c *gin.Context) {
 		utils.RespFail(c, "Error reading file data")
 		return
 	}
-
-	for _, conn := range connectedClients {
-		// 检查连接是否存在于 groupMembers 中
-		for _, member := range groupMembers {
-			if conn == connectedClients[member.MemberName] {
-				// 发送消息给匹配的连接
-				err := conn.WriteMessage(websocket.BinaryMessage, data)
-				if err != nil {
-					fmt.Println("Write error:", err)
+	// 创建一个通道用于发送消息
+	messageChannel := make(chan []byte)
+	// 启动一个 goroutine 处理消息发送
+	go func() {
+		for data := range messageChannel {
+			for _, conn := range connectedClients {
+				// 检查连接是否存在于 groupMembers 中
+				for _, member := range groupMembers {
+					if conn == connectedClients[member.MemberName] && member.MemberName != username {
+						// 发送消息给匹配的连接
+						err := conn.WriteMessage(websocket.BinaryMessage, data)
+						if err != nil {
+							fmt.Println("Write error:", err)
+						}
+						break
+					}
 				}
-				break
 			}
 		}
-	}
-
+	}()
+	// 将文件数据发送到通道
+	messageChannel <- data
+	// 关闭通道，结束 goroutine
+	close(messageChannel)
 	utils.RespSuccess(c, "File uploaded and sent successfully")
 }
+
 func uploadImage(c *gin.Context) {
 	userID := c.Param("userID")
 	conn, exists := connectedClients[userID]
