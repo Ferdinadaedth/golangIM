@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"golang.org/x/net/context"
 	"golangIM/cache"
 	"golangIM/dao"
 	"golangIM/model"
@@ -11,6 +12,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"sync"
 )
 
 var upgrader = websocket.Upgrader{
@@ -18,52 +20,31 @@ var upgrader = websocket.Upgrader{
 		return true
 	},
 }
+var upGrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true // 防止跨站点的请求伪造
+	},
+}
 
 var connectedClients = make(map[string]*websocket.Conn)
 
 func getgmessage(c *gin.Context) {
 	var gmessages []model.Gmessage
-	err := cache.GetCache("gmessages", &gmessages)
-	if err == nil {
-		c.JSON(http.StatusOK, gin.H{
-			"status":    200,
-			"gmessages": gmessages,
-		})
-		return
-	}
 	username := dao.Getusername(c)
 	gmessages = dao.ProcessGMessages(username)
 	c.JSON(http.StatusOK, gin.H{
 		"status":    200,
 		"gmessages": gmessages,
 	})
-	err = cache.SetCache("gmessages", &gmessages)
-	if err != nil {
-		log.Fatal(err.Error)
-		return
-	}
 }
 func getsmessage(c *gin.Context) {
 	var smessages []model.Smessage
-	err := cache.GetCache("smessages", &smessages)
-	if err == nil {
-		c.JSON(http.StatusOK, gin.H{
-			"status":    200,
-			"smessages": smessages,
-		})
-		return
-	}
 	username := dao.Getusername(c)
 	smessages = dao.Getsmessage(username)
 	c.JSON(http.StatusOK, gin.H{
 		"status":    200,
 		"smessages": smessages,
 	})
-	err = cache.SetCache("smessages", &smessages)
-	if err != nil {
-		log.Fatal(err.Error)
-		return
-	}
 }
 func sendsmessage(c *gin.Context) {
 	targetUserID := c.Param("userID")
@@ -110,7 +91,6 @@ func sendsmessage(c *gin.Context) {
 		if messageType == websocket.TextMessage {
 			mtype := "text"
 			dao.DepositSmessages(username, targetUsername, string(msg), mtype)
-			err = cache.DeleteCache("smessages")
 			if err != nil {
 				log.Fatal(err.Error())
 			}
@@ -125,6 +105,9 @@ func sendsmessage(c *gin.Context) {
 	close(messageChannel)
 }
 
+var mutex sync.Mutex
+var subscribeCtx context.Context
+
 func sendgmessage(c *gin.Context) {
 	groupID := c.Param("groupID")
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
@@ -133,7 +116,7 @@ func sendgmessage(c *gin.Context) {
 		return
 	}
 	username := dao.Getusername(c)
-	groupMembers := dao.Getgroupmember(groupID)
+	//groupMembers := dao.Getgroupmember(groupID)
 	// 获取群组中的成员列表
 	connectedClients[username] = conn
 	defer func() {
@@ -146,25 +129,30 @@ func sendgmessage(c *gin.Context) {
 	// 创建一个通道用于发送消息
 	messageChannel := make(chan []byte)
 
-	// 启动一个 goroutine 处理消息发送
+	subscribeChannel := groupID
+	// 启动一个 goroutine 处理订阅
 	go func() {
-		for msg := range messageChannel {
-			for _, conn := range connectedClients {
-				// 检查连接是否存在于 groupMembers 中
-				for _, member := range groupMembers {
-					if conn == connectedClients[member.MemberName] && member.MemberName != username {
-						// 发送消息给匹配的连接
-						err := conn.WriteMessage(websocket.TextMessage, msg)
-						if err != nil {
-							fmt.Println("Write error:", err)
-						}
-						break
-					}
-				}
+		for {
+			msg, err := utils.Subscribe(c, subscribeChannel)
+			if err != nil {
+				fmt.Println("Subscribe error:", err)
 			}
+			fmt.Println("msgsubscribe", string(msg))
+			messageChannel <- []byte(msg)
 		}
 	}()
-
+	go func() {
+		for msg := range messageChannel {
+			mutex.Lock()
+			// 发送消息给匹配的连接
+			err := conn.WriteMessage(websocket.TextMessage, msg)
+			if err != nil {
+				fmt.Println("Write error:", err)
+			}
+			fmt.Println("testmsg", string(msg))
+			mutex.Unlock()
+		}
+	}()
 	for {
 		messageType, msg, err := conn.ReadMessage()
 		if err != nil {
@@ -174,18 +162,21 @@ func sendgmessage(c *gin.Context) {
 		if messageType == websocket.TextMessage {
 			mtype := "text"
 			dao.DepositGmessages(username, groupID, string(msg), mtype)
-			err = cache.DeleteCache("gmessages")
+			publishChannel := groupID
+			subscribeCtx = context.TODO()
+			subscribeCtx = context.Background()
+			fmt.Println("msgpublish", string(msg)) // 将消息发送到 Redis 频道
+			err = utils.Publish(subscribeCtx, publishChannel, string(msg))
 			if err != nil {
-				log.Fatal(err.Error)
+				fmt.Println("Publish error:", err)
 			}
-			// 将消息发送到通道
-			messageChannel <- msg
 		}
 	}
 
 	// 关闭通道，结束 goroutine
 	close(messageChannel)
 }
+
 func groupuploadImage(c *gin.Context) {
 	groupID := c.Param("groupID")
 	groupMembers := dao.Getgroupmember(groupID) // 获取群组中的成员列表

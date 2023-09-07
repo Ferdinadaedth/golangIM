@@ -4,6 +4,15 @@ import (
 	"github.com/dgrijalva/jwt-go"
 )
 
+type Group struct {
+	Groupid   string `form:"groupid" json:"groupid" binding:"required"`
+	Groupname string `form:"groupname" json:"groupname" binding:"required"`
+}
+type Friendre struct {
+	Reid       string `form:"reid" json:"reid" binding:"required"`
+	Friendname string `form:"friendname" json:"friendname" binding:"required"`
+	Friendid   string `form:"friendid " json:"friendid " binding:"required"`
+}
 type User struct {
 	Username string `form:"username" json:"username" binding:"required"`
 	Password string `form:"password" json:"password" binding:"required"`

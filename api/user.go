@@ -13,6 +13,36 @@ import (
 	"time"
 )
 
+func getgroup(c *gin.Context) {
+	username := dao.Getusername(c)
+	groups := dao.Getgroup(username)
+	c.JSON(http.StatusOK, gin.H{
+		"status": "200",
+		"groups": groups,
+	})
+}
+func getfriend(c *gin.Context) {
+	username := dao.Getusername(c)
+	friends := dao.Getfriend(username)
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "200",
+		"friends": friends,
+	})
+}
+func getfriendre(c *gin.Context) {
+	username := dao.Getusername(c)
+	friendre := dao.GetFriendre(username)
+	c.JSON(http.StatusOK, gin.H{
+		"status":   "200",
+		"friendre": friendre,
+	})
+}
+func processfriendre(c *gin.Context) {
+	reid := c.Param("reid")
+	result := c.Param("result")
+	dao.Handlere(reid, result)
+	utils.RespSuccess(c, "处理成功")
+}
 func register(c *gin.Context) {
 	if err := c.ShouldBind(&model.User{}); err != nil {
 		utils.RespFail(c, "verification failed")
@@ -85,32 +115,13 @@ func login(c *gin.Context) {
 }
 func addfriend(c *gin.Context) {
 	friendid := c.PostForm("friendid")
-	value, exists := c.Get("username")
-	if !exists {
-		// 变量不存在，处理错误
-		utils.RespFail(c, "username not found")
-
-		return
-	}
-	username, ok := value.(string)
-	if !ok {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "username is not a string"})
-		return
-	}
+	username := dao.Getusername(c)
 	dao.Addfriend(username, friendid)
-	utils.RespSuccess(c, "成功添加好友")
+	utils.RespSuccess(c, "成功发送好友请求")
 }
 func deletefriend(c *gin.Context) {
 	friendid := c.PostForm("friendid")
-	value, exists := c.Get("username")
-	if !exists {
-		// 变量不存在，处理错误
-		utils.RespFail(c, "username not found")
-	}
-	username, ok := value.(string)
-	if !ok {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "username is not a string"})
-	}
+	username := dao.Getusername(c)
 	dao.Deletefriend(username, friendid)
 	utils.RespSuccess(c, "成功删除好友")
 }

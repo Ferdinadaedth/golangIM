@@ -7,15 +7,10 @@ import (
 )
 
 func ProcessGMessages(username string) []model.Gmessage {
-	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", userName, Password, ip, port, dbName))
-	if err != nil {
-		panic(err.Error())
-	}
-	defer db.Close()
 	// 查询 groupmember 表中指定 username 的行数
 	var count int
 	var gmessages []model.Gmessage
-	err = db.QueryRow("SELECT COUNT(*) FROM groupmember WHERE membername=?", username).Scan(&count)
+	err := db.QueryRow("SELECT COUNT(*) FROM groupmember WHERE membername=?", username).Scan(&count)
 	if err != nil {
 		panic(err.Error())
 	}

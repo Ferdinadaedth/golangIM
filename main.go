@@ -4,12 +4,12 @@ import (
 	"golangIM/api"
 	"golangIM/cache"
 	"golangIM/dao"
-	"golangIM/dao/redis"
+	"golangIM/utils"
 )
 
 func main() {
-	dao.Init()
-	redis.InitLike()
+	utils.InitMq()
+	dao.InitMysql()
 	cache.InitCache()
 	api.InitRouter()
 }

@@ -1,35 +1,67 @@
 package dao
 
 import (
-	"database/sql"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	_ "github.com/go-sql-driver/mysql"
+	"golangIM/cache"
 	"golangIM/model"
 	"log"
-	"net/http"
 )
 
-const (
-	userName = "root"
-	Password = "yx041110"
-	ip       = "newk8s.ferdinandaedth.top"
-	port     = "3306"
-	dbName   = "userdb"
-)
+func Getgroup(username string) []model.Group {
+	var groups []model.Group
+	rows, errq := db.Query("select groupid from groupmember where membername = ? ", username)
+	if errq != nil {
+		log.Fatal(errq.Error)
+	}
+	//遍历结果
+	for rows.Next() {
+		var u model.Group
+		errn := rows.Scan(&u.Groupid)
+		if errn != nil {
+			fmt.Printf("%v", errn)
+		}
 
-var db *sql.DB
+		groups = append(groups, u)
+	}
+	return groups
+}
+func GetFriendre(username string) []model.Friendre {
+	var friendre []model.Friendre
+	defaultstatus := "0"
+	rows, errq := db.Query("select friendid,friendname,reid from user_relation where username = ? AND status =?", username, defaultstatus)
+	if errq != nil {
+		log.Fatal(errq.Error)
+	}
+	//遍历结果
+	for rows.Next() {
+		var u model.Friendre
+		errn := rows.Scan(&u.Friendid, &u.Friendname, &u.Reid)
+		if errn != nil {
+			fmt.Printf("%v", errn)
+		}
 
-func Init() {
-	var err error
-	db, err = sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", userName, Password, ip, port, dbName))
+		friendre = append(friendre, u)
+	}
+	return friendre
+}
+func Handlere(reid, result string) {
+	_, err := db.Exec("UPDATE user_relation SET status = ? WHERE reid = ? ", result, reid)
 	if err != nil {
 		panic(err.Error())
 	}
-	db.SetMaxOpenConns(10) // 设置连接池中的最大连接数
-	db.SetMaxIdleConns(5)  // 设置连接池中的最大空闲连接数
+	var username string
+	var friendname string
+	err = db.QueryRow("SELECT username,friendname FROM user_relation WHERE reid=?", reid).Scan(&username, &friendname)
+	if err != nil {
+		panic(err.Error())
+	}
+	_, err = db.Exec("UPDATE user_relation SET status = ? WHERE username = ? AND friendname = ? ", result, friendname, username)
+	if err != nil {
+		panic(err.Error())
+	}
 }
-
 func Creategroup(groupname string) {
 	_, err := db.Exec("INSERT INTO Groups (groupname) VALUES (?)", groupname)
 	if err != nil {
@@ -48,7 +80,6 @@ func SelectUser(username string) bool {
 	} else {
 		return false
 	}
-
 }
 func Selectid(username string) string {
 	var userid string
@@ -77,6 +108,10 @@ func Addmember(id, groupid string) {
 	if err != nil {
 		panic(err.Error())
 	}
+	err = cache.DeleteCache("groupmembers" + groupid)
+	if err != nil {
+		log.Fatal(err.Error)
+	}
 }
 func Selectgroupid(groupname string) string {
 	var groupid string
@@ -87,22 +122,15 @@ func Selectgroupid(groupname string) string {
 	return groupid
 }
 func Addfriend(username, friendid string) {
-	var userid int
-	var uuserid int
-	err := db.QueryRow("SELECT userid FROM user WHERE username=?", friendid).Scan(&userid)
-	if err != nil {
-		panic(err.Error())
-	}
-	err = db.QueryRow("SELECT userid FROM user WHERE username=?", username).Scan(&uuserid)
-	if err != nil {
-		panic(err.Error())
-	}
+	friendname := Selectusername(friendid)
+	userid := Selectid(username)
+	defaultstatus := "0"
 	// 插入用户记录
-	_, err = db.Exec("INSERT INTO user_relation (userid, friendid,friendname) VALUES (?, ?,?)", username, userid, friendid)
+	_, err := db.Exec("INSERT INTO user_relation (username, friendid,friendname,status) VALUES (?, ?,?,?)", username, friendid, friendname, defaultstatus)
 	if err != nil {
 		panic(err.Error())
 	}
-	_, err = db.Exec("INSERT INTO user_relation (friendname, friendid,userid) VALUES (?, ?,?)", username, uuserid, friendid)
+	_, err = db.Exec("INSERT INTO user_relation (username, friendid,friendname,status) VALUES (?, ?,?,?)", friendname, userid, username, defaultstatus)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -136,14 +164,17 @@ func SelectPasswordFromUsername(username string) string {
 	return password
 }
 func Getgroupmember(groupid string) []model.GroupMember {
+	var groupMembers []model.GroupMember
 	// 查询数据库
+	err := cache.GetCache("groupmembers", &groupMembers)
+	if err == nil {
+		return groupMembers
+	}
 	rows, err := db.Query("SELECT memberid, membername, groupid FROM groupmember WHERE groupid = ?", groupid)
 	if err != nil {
 		panic(err.Error())
 	}
 	defer rows.Close()
-
-	var groupMembers []model.GroupMember
 
 	// 遍历查询结果，将数据存储到切片中
 	for rows.Next() {
@@ -154,19 +185,21 @@ func Getgroupmember(groupid string) []model.GroupMember {
 		}
 		groupMembers = append(groupMembers, member)
 	}
-
 	if err := rows.Err(); err != nil {
 		panic(err.Error())
 	}
+	err = cache.SetCache("groupmembers"+groupid, &groupMembers)
+	if err != nil {
+		log.Fatal(err.Error)
+	}
 	return groupMembers
 }
-func Getfriend(c *gin.Context) {
-	username := Getusername(c)
+func Getfriend(username string) []model.Friend {
 	var friends []model.Friend
-	rows, errq := db.Query("select friendid,friendname from user_relation where userid = ?", username)
+	newstatus := "1"
+	rows, errq := db.Query("select friendid,friendname from user_relation where username = ? AND status =?", username, newstatus)
 	if errq != nil {
 		log.Fatal(errq.Error)
-		return
 	}
 	//遍历结果
 	for rows.Next() {
@@ -178,8 +211,7 @@ func Getfriend(c *gin.Context) {
 
 		friends = append(friends, u)
 	}
-
-	c.JSON(http.StatusOK, gin.H{"friends": friends})
+	return friends
 
 }
 func Getusername(c *gin.Context) string {
